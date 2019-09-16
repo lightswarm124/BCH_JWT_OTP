@@ -1,0 +1,10 @@
+{
+  "name": "BCH_JWT_OTP",
+  "version": "0.0.1",
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {
+    "bitbox-sdk": "^8.8.0",
+    "jsonwebtoken": "^8.5.1"
+  }
+}
