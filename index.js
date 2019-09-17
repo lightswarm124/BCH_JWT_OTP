@@ -16,41 +16,58 @@ class BlockOTP {
     this.BITBOX = new BITBOXSDK.BITBOX({ restURL: this.restURL });
   }
 
-  async createJWT(privKeyWIF, expiration = 1) {
+  async getBlockchainData() {
     let blockCount = await this.BITBOX.Blockchain.getBlockCount();
     let blockHash = await this.BITBOX.Blockchain.getBestBlockHash();
-    let payload = await {
-      mkr: blockHash,
-      ebk: blockCount + expiration
-    };
-    let signedMessage = await this.BITBOX.BitcoinCash.signMessageWithPrivKey(
-      privKeyWIF,
-      JSON.stringify(payload)
-    );
-    let jwtMsg = await jwt.sign(payload, signedMessage, {
-      algorithm: 'HS256',
-      noTimestamp: true
-    });
-    return await {
-      privKeyMsg: signedMessage,
-      jwtToken: jwtMsg
+    return {
+      bkc: blockCount,
+      mkr: blockHash
     };
   }
 
-  async verifyJWT(signedMsg, token, pubKey) {
-    let payload = jwt.decode(token, {complete: true});
-    let verifyMessage = this.BITBOX.BitcoinCash.verifyMessage(
-      pubKey,
+  async signPayloadWithKey(privKeyWIF, payload = null) {
+    if (payload === null) {
+      payload = await this.getBlockchainData();
+    }
+    return await {
+      payload: payload,
+      signedMsg: this.BITBOX.BitcoinCash.signMessageWithPrivKey(
+                  privKeyWIF,
+                  JSON.stringify(payload)
+                )
+    };
+  }
+
+  verifySignedPayload(address, signedMsg, payload) {
+    return this.BITBOX.BitcoinCash.verifyMessage(
+      address,
       signedMsg,
-      JSON.stringify(payload.payload)
+      JSON.stringify(payload)
     );
+  }
+
+  async createJWT(address, signedMsg) {
+    let payload = await this.getBlockchainData();
+    let verifyMessage = await this.verifySignedPayload(address, signedMsg, payload);
+    if (verifyMessage === true) {
+      return jwt.sign(payload, signedMsg, {
+        algorithm: 'HS256',
+        noTimestamp: true
+      });
+    } else {
+      throw "Did not validate private-key signed message";
+    }
+  }
+
+  async verifyJWT(address, signedMsg, token) {
+    let payload = jwt.decode(token);
+    let verifyMessage = this.verifySignedPayload(address, signedMsg, payload);
     if (verifyMessage === true) {
       try {
         let cert = jwt.verify(token, signedMsg, {ignoreExpiration: true});
         return {
-          header: payload.header,
           payload: cert,
-          pubKey: pubKey
+          address: address
         };
       } catch (err) {
         throw "Did not validate JWT payload data";
